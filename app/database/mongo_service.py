@@ -77,6 +77,9 @@ def get_documents_for_comparison_values(
     comparison_field: str,
     comparison_values: set[Any],
 ) -> list[dict[str, Any]]:
+    if not comparison_values:
+        return []
+
     ensure_collection_exists(database, collection_name)
     collection = database[collection_name]
     documents: list[dict[str, Any]] = []
