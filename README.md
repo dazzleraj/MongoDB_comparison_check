@@ -27,10 +27,9 @@ app/
   comparison/
     comparator.py
     matcher.py
-  ui/
-    streamlit_app.py
   models/
     comparison_models.py
+streamlit_app.py
 requirements.txt
 .env
 README.md
@@ -61,7 +60,7 @@ pip install -r requirements.txt
 ## Run the Streamlit UI
 
 ```bash
-streamlit run app/ui/streamlit_app.py
+streamlit run streamlit_app.py
 ```
 
 ## Run the Uvicorn API

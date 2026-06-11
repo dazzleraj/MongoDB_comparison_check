@@ -8,7 +8,12 @@ from app.database.mongo_connection import (
     get_db1_connection,
     get_db2_connection,
 )
-from app.database.mongo_service import MongoServiceError, get_collection_fields, list_collections
+from app.database.mongo_service import (
+    MongoServiceError,
+    get_collection_fields,
+    get_documents_for_comparison_values,
+    list_collections,
+)
 
 
 st.set_page_config(
@@ -58,6 +63,62 @@ def render_summary(summary):
     col4.metric("Match Percentage", f"{summary.match_percentage}%")
     col5.metric("Duplicate Values", summary.duplicate_values)
     col6.metric("Null Values", summary.null_values)
+
+
+def render_document_pair(
+    title: str,
+    db1,
+    db1_collection: str,
+    db1_values: set,
+    db2,
+    db2_collection: str,
+    db2_values: set,
+    comparison_field: str,
+):
+    st.subheader(title)
+
+    if not db1_values and not db2_values:
+        st.info(f"No {title.lower()} found.")
+        return
+
+    db1_documents = get_documents_for_comparison_values(
+        db1,
+        db1_collection,
+        comparison_field,
+        db1_values,
+    )
+    db2_documents = get_documents_for_comparison_values(
+        db2,
+        db2_collection,
+        comparison_field,
+        db2_values,
+    )
+
+    db1_column, db2_column = st.columns(2)
+
+    with db1_column:
+        st.markdown("**DB1 Documents**")
+        st.caption(f"{len(db1_documents)} documents from {db1_collection}")
+        if db1_documents:
+            st.dataframe(
+                pd.json_normalize(db1_documents),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("No DB1 documents for this result group.")
+
+    with db2_column:
+        st.markdown("**DB2 Documents**")
+        st.caption(f"{len(db2_documents)} documents from {db2_collection}")
+        if db2_documents:
+            st.dataframe(
+                pd.json_normalize(db2_documents),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("No DB2 documents for this result group.")
 
 
 st.title("MongoDB Collection Comparator")
@@ -134,3 +195,36 @@ if st.button("SEARCH", type="primary"):
             render_summary(result.summary)
             dataframe = pd.DataFrame(result.to_display_rows())
             st.dataframe(dataframe, use_container_width=True, hide_index=True)
+            matched_values = {
+                row.comparison_value for row in result.rows if row.status == "MATCH"
+            }
+            db1_unmatched_values = {
+                row.comparison_value
+                for row in result.rows
+                if row.status == "MISMATCH" and row.db1_exists
+            }
+            db2_unmatched_values = {
+                row.comparison_value
+                for row in result.rows
+                if row.status == "MISMATCH" and row.db2_exists
+            }
+            render_document_pair(
+                title="Matched Collection Data",
+                db1=db1,
+                db1_collection=db1_collection,
+                db1_values=matched_values,
+                db2=db2,
+                db2_collection=db2_collection,
+                comparison_field=comparison_field,
+                db2_values=matched_values,
+            )
+            render_document_pair(
+                title="Unmatched Collection Data",
+                db1=db1,
+                db1_collection=db1_collection,
+                db1_values=db1_unmatched_values,
+                db2=db2,
+                db2_collection=db2_collection,
+                comparison_field=comparison_field,
+                db2_values=db2_unmatched_values,
+            )

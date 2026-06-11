@@ -1,6 +1,8 @@
+import json
 from collections import Counter
 from typing import Any
 
+from bson import json_util
 from pymongo.database import Database
 from pymongo.errors import PyMongoError
 
@@ -47,7 +49,11 @@ def count_field_values(
 ) -> Counter[Any]:
     ensure_collection_exists(database, collection_name)
     collection = database[collection_name]
-    projection = {comparison_field: 1, "_id": 0}
+    projection = (
+        {"_id": 1}
+        if comparison_field == "_id"
+        else {comparison_field: 1, "_id": 0}
+    )
     values: Counter[Any] = Counter()
 
     try:
@@ -65,16 +71,45 @@ def count_field_values(
     return values
 
 
+def get_documents_for_comparison_values(
+    database: Database,
+    collection_name: str,
+    comparison_field: str,
+    comparison_values: set[Any],
+) -> list[dict[str, Any]]:
+    ensure_collection_exists(database, collection_name)
+    collection = database[collection_name]
+    documents: list[dict[str, Any]] = []
+
+    try:
+        for document in collection.find({}):
+            normalized_value = _normalize_hashable_value(document.get(comparison_field))
+            if normalized_value in comparison_values:
+                documents.append(_to_json_safe_document(document))
+    except PyMongoError as exc:
+        raise MongoServiceError(
+            f"Unable to fetch matched documents from '{collection_name}': {exc}"
+        ) from exc
+
+    return documents
+
+
 def collection_has_field(
     database: Database,
     collection_name: str,
     comparison_field: str,
 ) -> bool:
     ensure_collection_exists(database, collection_name)
+    projection = (
+        {"_id": 1}
+        if comparison_field == "_id"
+        else {comparison_field: 1, "_id": 0}
+    )
+
     try:
         return database[collection_name].find_one(
             {comparison_field: {"$exists": True}},
-            {comparison_field: 1, "_id": 0},
+            projection,
         ) is not None
     except PyMongoError as exc:
         raise MongoServiceError(
@@ -92,3 +127,6 @@ def _normalize_hashable_value(value: Any) -> Any:
         )
     return value
 
+
+def _to_json_safe_document(document: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(json_util.dumps(document))
