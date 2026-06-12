@@ -187,8 +187,18 @@ def compute_collection_result(
             comparison_field=comparison_field,
             include_null_values=include_null_values,
         )
-    except (ComparisonValidationError, MongoServiceError) as exc:
-        return {"collection_name": collection_name, "error": str(exc)}
+    except ComparisonValidationError as exc:
+        return {
+            "collection_name": collection_name,
+            "error": str(exc),
+            "error_type": "no_data",
+        }
+    except MongoServiceError as exc:
+        return {
+            "collection_name": collection_name,
+            "error": str(exc),
+            "error_type": "service",
+        }
 
     matched_values = {
         row.comparison_value for row in result.rows if row.status == "MATCH"
@@ -220,6 +230,7 @@ def compute_collection_result(
     return {
         "collection_name": collection_name,
         "error": None,
+        "error_type": None,
         "summary": result.summary,
         "display_rows": result.to_display_rows(),
         "matched_db1": matched_db1_documents,
@@ -234,7 +245,12 @@ def render_collection_result(data: dict) -> None:
     st.header(data["collection_name"])
 
     if data.get("error"):
-        st.error(data["error"])
+        if data.get("error_type") == "no_data":
+            st.markdown(
+                f"**NO DATA AVAILABLE IN COLLECTION '{data['collection_name'].upper()}'.**"
+            )
+        else:
+            st.error(data["error"])
         return
 
     render_summary(data["summary"])
@@ -289,7 +305,7 @@ def build_excel_download(collection_results: list[dict], data_type: str) -> byte
         wrote_sheet = False
 
         for result in collection_results:
-            if result.get("error"):
+            if result.get("error") or result.get("no_data"):
                 continue
 
             collection_name = result["collection_name"]
