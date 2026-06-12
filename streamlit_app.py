@@ -93,6 +93,7 @@ def format_cell_value(value, truncate: bool = False):
     return value
 
 
+
 def render_document_pair(
     title: str,
     db1_documents: list[dict],
