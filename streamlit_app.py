@@ -439,21 +439,31 @@ include_null_values = st.checkbox("Include null and missing field values", value
 
 if st.button("SEARCH", type="primary"):
     collection_results = []
-    progress_placeholder = st.empty()
+
+    progress_bar = st.progress(0, text=f"Comparing reporttemplates (0/{len(collection_names)})...")
+
     for index, collection_name in enumerate(collection_names, start=1):
-        with progress_placeholder, st.spinner(
-            f"Comparing {collection_name} ({index}/{len(collection_names)})..."
-        ):
-            collection_results.append(
-                compute_collection_result(
-                    db1=db1,
-                    db2=db2,
-                    collection_name=collection_name,
-                    comparison_field=comparison_field,
-                    include_null_values=include_null_values,
-                )
-            )
-    progress_placeholder.empty()
+        progress_bar.progress(
+            index / len(collection_names),
+            text=f"Comparing {collection_name} ({index}/{len(collection_names)})...",
+        )
+
+        result = compute_collection_result(
+            db1=db1,
+            db2=db2,
+            collection_name=collection_name,
+            comparison_field=comparison_field,
+            include_null_values=include_null_values,
+        )
+        collection_results.append(result)
+
+        # Render each collection's result immediately after it is computed
+        # so the user sees output as it arrives rather than waiting for the
+        # full loop to finish.
+        st.divider()
+        render_collection_result(result)
+
+    progress_bar.empty()
 
     # Cache the computed results (along with the settings used to produce
     # them) so that later reruns - e.g. triggered by clicking a download
@@ -462,10 +472,20 @@ if st.button("SEARCH", type="primary"):
     st.session_state["collection_results"] = collection_results
     st.session_state["collection_results_field"] = comparison_field
     st.session_state["collection_results_include_nulls"] = include_null_values
+    st.session_state["just_ran_search"] = True
 
+    # Show download buttons immediately after the loop completes.
+    st.divider()
+    st.subheader("Excel Downloads")
+    render_download_buttons(collection_results)
+
+# On subsequent reruns (e.g. triggered by a download button click) re-render
+# from the cached results without hitting MongoDB again.  We skip this block
+# on the run that immediately follows a SEARCH because the results were
+# already rendered progressively inside the button block above.
 collection_results = st.session_state.get("collection_results")
 
-if collection_results:
+if collection_results and not st.session_state.get("just_ran_search"):
     if (
         st.session_state.get("collection_results_field") != comparison_field
         or st.session_state.get("collection_results_include_nulls") != include_null_values
@@ -482,3 +502,7 @@ if collection_results:
     st.divider()
     st.subheader("Excel Downloads")
     render_download_buttons(collection_results)
+
+# Reset the flag so the next rerun (e.g. download button) falls through to
+# the cache-render block above.
+st.session_state["just_ran_search"] = False
