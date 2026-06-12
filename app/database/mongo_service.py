@@ -11,6 +11,9 @@ class MongoServiceError(RuntimeError):
     pass
 
 
+ACTIVE_DOCUMENT_FILTER = {"active": True, "deleted": False}
+
+
 def list_collections(database: Database) -> list[str]:
     try:
         return sorted(database.list_collection_names())
@@ -33,7 +36,7 @@ def get_collection_fields(
     fields: set[str] = set()
 
     try:
-        for document in collection.find({}, limit=sample_size):
+        for document in collection.find(ACTIVE_DOCUMENT_FILTER, limit=sample_size):
             fields.update(document.keys())
     except PyMongoError as exc:
         raise MongoServiceError(f"Unable to fetch fields from '{collection_name}': {exc}") from exc
@@ -57,7 +60,7 @@ def count_field_values(
     values: Counter[Any] = Counter()
 
     try:
-        cursor = collection.find({}, projection)
+        cursor = collection.find(ACTIVE_DOCUMENT_FILTER, projection)
         for document in cursor:
             value = document.get(comparison_field)
             if value is None and not include_null_values:
@@ -85,7 +88,7 @@ def get_documents_for_comparison_values(
     documents: list[dict[str, Any]] = []
 
     try:
-        for document in collection.find({}):
+        for document in collection.find(ACTIVE_DOCUMENT_FILTER):
             normalized_value = _normalize_hashable_value(document.get(comparison_field))
             if normalized_value in comparison_values:
                 documents.append(_to_json_safe_document(document))
@@ -111,7 +114,7 @@ def collection_has_field(
 
     try:
         return database[collection_name].find_one(
-            {comparison_field: {"$exists": True}},
+            {**ACTIVE_DOCUMENT_FILTER, comparison_field: {"$exists": True}},
             projection,
         ) is not None
     except PyMongoError as exc:

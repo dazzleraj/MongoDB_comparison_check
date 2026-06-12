@@ -9,8 +9,10 @@ A Streamlit-based validation tool for comparing values in MongoDB collections ac
 - Runs collection comparisons in batch.
 - Fetches available comparison attributes from the configured collections.
 - Compares selected field values using dictionary and set-style lookups.
+- Compares only documents where `active` is `true` and `deleted` is `false`.
 - Reports matches, mismatches, duplicate values, null values, and document counts.
 - Shows each collection layer by layer: comparison table, matched documents, then unmatched documents.
+- Provides Excel downloads for all matched data and all unmatched data.
 - Uses MongoDB projections so only the selected comparison field is fetched.
 - Includes a small FastAPI app for Uvicorn health/config checks.
 
@@ -87,6 +89,12 @@ For the selected comparison field across each configured collection:
 - Null or missing field values can be included or excluded from the comparison.
 
 The Streamlit UI only asks for the comparison attribute. Collection selection is controlled by `COLLECTION_NAMES` in `.env`.
+
+Only filtered active records are compared:
+
+```python
+{"active": True, "deleted": False}
+```
 
 ## Output Columns
 
