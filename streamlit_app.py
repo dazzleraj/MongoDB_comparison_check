@@ -262,3 +262,4 @@ if st.button("SEARCH", type="primary"):
                 comparison_field=comparison_field,
                 include_null_values=include_null_values,
             )
+
