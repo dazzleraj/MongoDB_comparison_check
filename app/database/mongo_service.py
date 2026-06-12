@@ -100,6 +100,17 @@ def get_documents_for_comparison_values(
     return documents
 
 
+def collection_has_documents(database: Database, collection_name: str) -> bool:
+    ensure_collection_exists(database, collection_name)
+
+    try:
+        return database[collection_name].find_one(ACTIVE_DOCUMENT_FILTER, {"_id": 1}) is not None
+    except PyMongoError as exc:
+        raise MongoServiceError(
+            f"Unable to check documents in '{collection_name}': {exc}"
+        ) from exc
+
+
 def collection_has_field(
     database: Database,
     collection_name: str,

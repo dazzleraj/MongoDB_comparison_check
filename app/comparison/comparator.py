@@ -1,12 +1,23 @@
 from pymongo.database import Database
 
 from app.comparison.matcher import build_comparison_rows
-from app.database.mongo_service import collection_has_field, count_field_values
+from app.database.mongo_service import (
+    collection_has_documents,
+    collection_has_field,
+    count_field_values,
+)
 from app.models.comparison_models import ComparisonResult, ComparisonSummary
 
 
 class ComparisonValidationError(ValueError):
     pass
+
+
+class NoDataError(ComparisonValidationError):
+    """Raised when a collection has no documents matching the active filter.
+
+    This is treated as an informational case (not a real error) by the UI.
+    """
 
 
 def compare_collections(
@@ -19,6 +30,27 @@ def compare_collections(
 ) -> ComparisonResult:
     if not comparison_field:
         raise ComparisonValidationError("Select a comparison field.")
+
+    db1_has_data = collection_has_documents(db1, db1_collection)
+    db2_has_data = collection_has_documents(db2, db2_collection)
+
+    if not db1_has_data and not db2_has_data:
+        raise NoDataError(
+            f"No data exists in collection '{db1_collection}' "
+            f"(with active = true and deleted = false) for the selected comparison attribute."
+        )
+
+    if not db1_has_data:
+        raise NoDataError(
+            f"No data exists in DB1 collection '{db1_collection}' "
+            f"(with active = true and deleted = false) for the selected comparison attribute."
+        )
+
+    if not db2_has_data:
+        raise NoDataError(
+            f"No data exists in DB2 collection '{db2_collection}' "
+            f"(with active = true and deleted = false) for the selected comparison attribute."
+        )
 
     if not collection_has_field(db1, db1_collection, comparison_field):
         raise ComparisonValidationError(
@@ -61,4 +93,3 @@ def compare_collections(
             null_values=null_values,
         ),
     )
-

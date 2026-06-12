@@ -4,7 +4,7 @@ from io import BytesIO
 import pandas as pd
 import streamlit as st
 
-from app.comparison.comparator import ComparisonValidationError, compare_collections
+from app.comparison.comparator import ComparisonValidationError, NoDataError, compare_collections
 from app.config.settings import get_settings
 from app.database.mongo_connection import (
     MongoConnectionError,
@@ -13,6 +13,7 @@ from app.database.mongo_connection import (
 )
 from app.database.mongo_service import (
     MongoServiceError,
+    collection_has_documents,
     get_collection_fields,
     get_documents_for_comparison_values,
     list_collections,
@@ -187,8 +188,10 @@ def compute_collection_result(
             comparison_field=comparison_field,
             include_null_values=include_null_values,
         )
+    except NoDataError as exc:
+        return {"collection_name": collection_name, "error": None, "no_data": str(exc)}
     except (ComparisonValidationError, MongoServiceError) as exc:
-        return {"collection_name": collection_name, "error": str(exc)}
+        return {"collection_name": collection_name, "error": str(exc), "no_data": None}
 
     matched_values = {
         row.comparison_value for row in result.rows if row.status == "MATCH"
@@ -220,6 +223,7 @@ def compute_collection_result(
     return {
         "collection_name": collection_name,
         "error": None,
+        "no_data": None,
         "summary": result.summary,
         "display_rows": result.to_display_rows(),
         "matched_db1": matched_db1_documents,
@@ -235,6 +239,10 @@ def render_collection_result(data: dict) -> None:
 
     if data.get("error"):
         st.error(data["error"])
+        return
+
+    if data.get("no_data"):
+        st.info(data["no_data"])
         return
 
     render_summary(data["summary"])
@@ -289,7 +297,7 @@ def build_excel_download(collection_results: list[dict], data_type: str) -> byte
         wrote_sheet = False
 
         for result in collection_results:
-            if result.get("error"):
+            if result.get("error") or result.get("no_data"):
                 continue
 
             collection_name = result["collection_name"]
