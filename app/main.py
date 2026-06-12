@@ -22,3 +22,4 @@ def config_status() -> dict[str, bool]:
         "configuration_complete": settings.is_complete,
     }
 
+
